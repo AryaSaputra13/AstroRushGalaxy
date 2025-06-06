@@ -1,3 +1,4 @@
+﻿using System.Collections;
 using UnityEngine;
 
 public class Enemy : MonoBehaviour
@@ -5,16 +6,29 @@ public class Enemy : MonoBehaviour
     [Header("Movement Settings")]
     [SerializeField] private float _moveSpeed = 3f;
     [SerializeField] private float _directionChangeInterval = 2f;
-    [SerializeField] private float _randomMovementRange = 3f; // Jarak sebelum ganti arah
-    
+    [SerializeField] private float _randomMovementRange = 3f;
+
     [Header("Shooting Settings")]
     [SerializeField] private EnemyBullet _bulletPrefab;
     [SerializeField] private float _shootCooldown = 2f;
     [SerializeField] private Transform _shootPoint;
-    
+
+    [Header("Audio Settings")]
+    [SerializeField] private AudioClip _shootSound;
+    private AudioSource _audioSource;
+
     [Header("Effects")]
     [SerializeField] private GameObject _explosionEffect;
-    
+
+    [Header("Health Settings")]
+    [SerializeField] private int _maxHP = 3; // Jumlah HP musuh yang bisa diatur di Inspector
+
+    [SerializeField] private AudioClip _hitSound; // sound saat kena hit tapi tidak mati
+    [SerializeField] private AudioClip _explosionSound;
+
+    private int _currentHP;
+
+    private bool _isInvincible = false;
     private Rigidbody2D _rigidbody;
     private Vector2 _moveDirection;
     private Camera _mainCamera;
@@ -25,18 +39,22 @@ public class Enemy : MonoBehaviour
     private bool _hasEnteredScreen = false;
     private bool _isDead = false;
     private Transform _player;
-    private Vector2 _targetPosition; // Target posisi acak
-    private float _distanceToTarget; // Jarak ke target
+    private Vector2 _targetPosition;
+    public GameObject dropItemPrefab;
+    private bool _itemDropped = false;
 
     private void Awake()
     {
         _rigidbody = GetComponent<Rigidbody2D>();
+        _audioSource = GetComponent<AudioSource>();
         _mainCamera = Camera.main;
         _player = GameObject.FindGameObjectWithTag("Player")?.transform;
-        
+
         Vector2 screenBounds = _mainCamera.ScreenToWorldPoint(new Vector2(Screen.width, Screen.height));
         _screenWidth = screenBounds.x;
         _screenHeight = screenBounds.y;
+
+        _currentHP = _maxHP;
     }
 
     private void OnEnable()
@@ -45,6 +63,8 @@ public class Enemy : MonoBehaviour
         _hasEnteredScreen = false;
         SetRandomTargetPosition();
         _nextShootTime = Time.time + Random.Range(0.5f, _shootCooldown);
+        _currentHP = _maxHP; // Reset HP saat diaktifkan kembali
+        _isDead = false;
     }
 
     private void FixedUpdate()
@@ -61,15 +81,13 @@ public class Enemy : MonoBehaviour
         }
         else
         {
-            // Cek jika sudah mencapai target atau waktunya ganti arah
-            if (Vector2.Distance(transform.position, _targetPosition) < 0.1f || 
+            if (Vector2.Distance(transform.position, _targetPosition) < 0.1f ||
                 Time.time > _nextDirectionChangeTime)
             {
                 SetRandomTargetPosition();
                 _nextDirectionChangeTime = Time.time + _directionChangeInterval;
             }
 
-            // Shooting logic
             if (Time.time > _nextShootTime && _player != null)
             {
                 ShootAtPlayer();
@@ -82,20 +100,18 @@ public class Enemy : MonoBehaviour
 
     private void MoveEnemy()
     {
-        // Bergerak menuju target position
         _moveDirection = (_targetPosition - (Vector2)transform.position).normalized;
         Vector2 moveAmount = _moveDirection * _moveSpeed * Time.fixedDeltaTime;
         _rigidbody.MovePosition(_rigidbody.position + moveAmount);
 
-        // Screen bounds check dengan pantulan
         Vector2 viewPos = _mainCamera.WorldToViewportPoint(_rigidbody.position);
-        
+
         if (viewPos.x < 0.05f || viewPos.x > 0.95f)
         {
             _targetPosition.x = Mathf.Clamp(_targetPosition.x, -_screenWidth + 1, _screenWidth - 1);
             _targetPosition.y = transform.position.y + Random.Range(-1f, 1f);
         }
-        
+
         if (viewPos.y < 0.05f || viewPos.y > 0.95f)
         {
             _targetPosition.y = Mathf.Clamp(_targetPosition.y, -_screenHeight + 1, _screenHeight - 1);
@@ -107,16 +123,22 @@ public class Enemy : MonoBehaviour
     {
         if (_bulletPrefab == null || _shootPoint == null || _player == null) return;
 
-        Vector2 direction = (_player.position - _shootPoint.position).normalized;
         EnemyBullet bullet = Instantiate(_bulletPrefab, _shootPoint.position, Quaternion.identity);
-        bullet.SetDirection(direction);
+
+        // Hitung arah dari enemy ke player
+        Vector2 shootDirection = (_player.position - _shootPoint.position).normalized;
+        bullet.SetDirection(shootDirection);
+
+        if (_shootSound != null && _audioSource != null)
+        {
+            _audioSource.PlayOneShot(_shootSound);
+        }
     }
 
     private void SpawnAboveScreen()
     {
-        // Selalu spawn dari atas layar
         Vector2 spawnPosition = new Vector2(
-            Random.Range(-_screenWidth, _screenWidth), 
+            Random.Range(-_screenWidth, _screenWidth),
             _screenHeight + 1
         );
         transform.position = spawnPosition;
@@ -125,13 +147,11 @@ public class Enemy : MonoBehaviour
 
     private void SetRandomTargetPosition()
     {
-        // Set target position baru dengan jarak minimal 3 unit
         _targetPosition = new Vector2(
             transform.position.x + Random.Range(-_randomMovementRange, _randomMovementRange),
             transform.position.y + Random.Range(-_randomMovementRange, _randomMovementRange)
         );
 
-        // Pastikan target tetap dalam layar
         _targetPosition.x = Mathf.Clamp(_targetPosition.x, -_screenWidth + 1, _screenWidth - 1);
         _targetPosition.y = Mathf.Clamp(_targetPosition.y, -_screenHeight + 1, _screenHeight - 1);
     }
@@ -142,19 +162,112 @@ public class Enemy : MonoBehaviour
 
         if (collision.CompareTag("PlayerBullet"))
         {
-            DestroyEnemy();
+            int damage = 1; // default damage
+
+            // Cek apakah peluru punya info damage
+            var bullet = collision.GetComponent<PlayerBullet>();
+            if (bullet != null)
+                damage = bullet.Damage;
+
+            TakeDamage(damage);
+
             Destroy(collision.gameObject);
-            GameManager.Instance.AddScore(10);
         }
+        else if (collision.CompareTag("Player"))
+        {
+            TakeDamage(_currentHP);
+        }
+    }
+
+    private void TakeDamage(int damage)
+    {
+        if (_isInvincible || _isDead) return;
+
+        _currentHP -= damage;
+
+        if (_currentHP <= 0)
+        {
+            GameManager.Instance.AddScore(10);
+            GameManager.Instance.EnemyDefeated();
+            DestroyEnemy();
+        }
+        else
+        {
+            StartCoroutine(HandleInvincibility());
+            if (_hitSound != null && _audioSource != null)
+            {
+                _audioSource.PlayOneShot(_hitSound);
+            }
+        }
+    }
+
+    private IEnumerator HandleInvincibility()
+    {
+        _isInvincible = true;
+
+        // buat sprite menghilang
+        var renderers = GetComponentsInChildren<SpriteRenderer>();
+        foreach (var renderer in renderers)
+        {
+            renderer.enabled = false;
+        }
+
+        yield return new WaitForSeconds(0.1f);
+
+        foreach (var renderer in renderers)
+        {
+            renderer.enabled = true;
+        }
+
+        _isInvincible = false;
     }
 
     public void DestroyEnemy()
     {
+        if (_isDead) return;
+
         _isDead = true;
+
+        if (!_itemDropped && GameManager.Instance.CanDropItem())
+        {
+            Instantiate(dropItemPrefab, transform.position, Quaternion.identity);
+            GameManager.Instance.MarkDropSpawned();
+            _itemDropped = true;
+        }
+
         if (_explosionEffect != null)
         {
-            Instantiate(_explosionEffect, transform.position, Quaternion.identity);
+            GameObject explosion = Instantiate(_explosionEffect, transform.position, Quaternion.identity);
+            Destroy(explosion, 0.5f); // hilangkan ledakan setelah 0.5 detik
         }
+
+        if (_explosionSound != null && _audioSource != null)
+        {
+            _audioSource.PlayOneShot(_explosionSound);
+        }
+
+        // Matikan semua renderer musuh agar sprite tidak terlihat
+        var renderers = GetComponentsInChildren<SpriteRenderer>();
+        foreach (var renderer in renderers)
+        {
+            renderer.enabled = false;
+        }
+
+        // Nonaktifkan collider agar tidak kena hit lagi
+        var colliders = GetComponents<Collider2D>();
+        foreach (var col in colliders)
+        {
+            col.enabled = false;
+        }
+
+        // Hancurkan musuh setelah suara ledakan selesai
+        StartCoroutine(DestroyAfterSound());
+    }
+
+    private IEnumerator DestroyAfterSound()
+    {
+        float delay = _explosionSound != null ? _explosionSound.length : 0.5f;
+        yield return new WaitForSeconds(delay);
         Destroy(gameObject);
     }
 
@@ -163,5 +276,4 @@ public class Enemy : MonoBehaviour
         Vector2 viewPos = _mainCamera.WorldToViewportPoint(transform.position);
         return viewPos.x > 0 && viewPos.x < 1 && viewPos.y > 0 && viewPos.y < 1;
     }
-
 }

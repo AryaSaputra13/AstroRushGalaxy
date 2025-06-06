@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -6,7 +6,8 @@ public class EnemyBullet : MonoBehaviour
 {
     [SerializeField] private float _speed = 5f;
     [SerializeField] private float _lifetime = 3f;
-    
+    [SerializeField] private int _damage = 1; // ← NEW: bisa diatur lewat Inspector
+
     private Vector2 _direction;
     private Rigidbody2D _rigidbody;
     private float _spawnTime;
@@ -25,7 +26,7 @@ public class EnemyBullet : MonoBehaviour
     private void FixedUpdate()
     {
         _rigidbody.velocity = _direction * _speed;
-        
+
         if (Time.time > _spawnTime + _lifetime)
         {
             Destroy(gameObject);
@@ -36,7 +37,11 @@ public class EnemyBullet : MonoBehaviour
     {
         if (collision.CompareTag("Player"))
         {
-            collision.GetComponent<Player>()?.TakeDamage();
+            Player player = collision.GetComponent<Player>();
+            if (player != null)
+            {
+                player.TakeDamage(_damage); // Kirim nilai damage
+            }
             Destroy(gameObject);
         }
         else if (!collision.CompareTag("Enemy"))

@@ -11,7 +11,10 @@ public class Player : MonoBehaviour
     [SerializeField] private int _maxLives = 5;
     [SerializeField] private float _invulnerabilityDuration = 2f;
     [SerializeField] private float _blinkInterval = 0.1f;
-    
+    [SerializeField] private AudioClip _shootSFX;
+    [SerializeField] private AudioClip _explosionSFX;
+
+    private AudioSource _audioSource;
     private Rigidbody2D _rigidbody;
     private Vector2 _moveDirection;
     private float _shootDelayCounter;
@@ -19,12 +22,16 @@ public class Player : MonoBehaviour
     private bool _isInvulnerable = false;
     private SpriteRenderer _spriteRenderer;
     private Coroutine _blinkCoroutine;
+    public GameObject[] bulletLevels; // Atur prefab bullet level 1-3 di Inspector
+    private int currentBulletLevel = 0;
 
     private void Awake()
     {
         _rigidbody = GetComponent<Rigidbody2D>();
         _spriteRenderer = GetComponent<SpriteRenderer>();
+        _audioSource = GetComponent<AudioSource>();
         _currentLives = _maxLives;
+        LifeManager.Instance.SetStartingLives(_currentLives);
     }
 
     private void FixedUpdate()
@@ -45,7 +52,21 @@ public class Player : MonoBehaviour
         if (_isShootingHeld && _shootDelayCounter > _shootDelay)
         {
             _shootDelayCounter = 0f;
-            Instantiate(_bulletPrefab, transform.position, transform.rotation);
+            Instantiate(bulletLevels[currentBulletLevel], transform.position, transform.rotation);
+
+            if (_shootSFX != null) 
+            {
+                _audioSource.PlayOneShot(_shootSFX);
+            }
+        }
+    }
+
+    public void UpgradeBullet()
+    {
+        if (currentBulletLevel < bulletLevels.Length - 1)
+        {
+            currentBulletLevel++;
+            Debug.Log("Bullet upgraded to level " + (currentBulletLevel + 1));
         }
     }
 
@@ -55,7 +76,7 @@ public class Player : MonoBehaviour
 
         if (collision.CompareTag("Enemy"))
         {
-            TakeDamage();
+            TakeDamage(1);
             collision.GetComponent<Enemy>().DestroyEnemy();
         }
     }
@@ -86,13 +107,14 @@ public class Player : MonoBehaviour
         }
     }
 
-    public void TakeDamage()
+    public void TakeDamage(int damageAmount)
     {
         if (_isInvulnerable) return;
-    
-        _currentLives--;
-        LifeManager.Instance?.UpdateLives(_currentLives);
-    
+
+        _currentLives -= damageAmount;
+        _currentLives = Mathf.Max(_currentLives, 0); // Hindari nilai negatif
+        LifeManager.Instance.TakeHit();
+
         if (_currentLives <= 0)
         {
             DestroyPlayer();
@@ -109,6 +131,20 @@ public class Player : MonoBehaviour
         {
             Instantiate(_explosionEffect, transform.position, Quaternion.identity);
         }
+        
+        if (_explosionSFX != null)
+        {
+            GameObject tempAudio = new GameObject("TempExplosionAudio");
+            tempAudio.transform.position = transform.position;
+
+            AudioSource audioSource = tempAudio.AddComponent<AudioSource>();
+            audioSource.clip = _explosionSFX;
+            audioSource.Play();
+
+            // Hancurkan setelah suara selesai
+            Destroy(tempAudio, _explosionSFX.length);
+        }
+        
         Destroy(gameObject);
         GameManager.Instance.GameOver();
     }

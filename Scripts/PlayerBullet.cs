@@ -6,12 +6,20 @@ public class PlayerBullet : MonoBehaviour
 {
     [SerializeField] private float _speed = 8f;
     [SerializeField] private float _maxDistance = 8f;
+    [SerializeField] private int _damage = 1;
         
     private Rigidbody2D _rigidbody;
+
+    public int Damage => _damage;
         
     private void Awake()
     {
         _rigidbody = GetComponent<Rigidbody2D>();
+    }
+
+    public void SetDamage(int damage)
+    {
+        _damage = damage;
     }
 
     private void FixedUpdate()
@@ -24,14 +32,4 @@ public class PlayerBullet : MonoBehaviour
             Destroy(gameObject);
         }
     }  
-
-    private void OnTriggerEnter2D(Collider2D collision)
-    {
-        if (collision.CompareTag("Enemy"))
-        {
-            Destroy(collision.gameObject); // Hancurkan musuh
-            Destroy(gameObject); // Hancurkan peluru
-            GameManager.Instance.AddScore(10); // Tambah skor
-        }
-    }
 }

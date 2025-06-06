@@ -2,23 +2,66 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 public class LifeManager : MonoBehaviour
 {
     public static LifeManager Instance;
     
-    [SerializeField] private Image[] _lifeIcons;
+    [SerializeField] private TextMeshProUGUI lifeText; // Referensi ke TMP UI Text
+    [SerializeField] private int startingLives = 5;
     
+    private int currentLives;
+
     private void Awake()
     {
-        Instance = this;
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
     }
-    
-    public void UpdateLives(int currentLives)
+
+    private void Start()
     {
-        for (int i = 0; i < _lifeIcons.Length; i++)
+        UpdateLifeDisplay();
+    }
+
+    public void SetStartingLives(int lives)
+    {
+        startingLives = lives;
+        currentLives = lives;
+        UpdateLifeDisplay();
+    }
+
+    public void TakeHit()
+    {
+        currentLives--;
+
+        if (currentLives <= 0)
         {
-            _lifeIcons[i].enabled = i < currentLives;
+            currentLives = 0;
+            UpdateLifeDisplay();
+            GameManager.Instance.GameOver(); // Panggil game over dari GameManager
         }
+        else
+        {
+            UpdateLifeDisplay();
+        }
+    }
+
+    public void UpdateLifeDisplay()
+    {
+        lifeText.text = "X " + currentLives;
+    }
+
+    public int GetCurrentLives()
+    {
+        return currentLives;
+    }
+
+    public void ResetLives()
+    {
+        currentLives = startingLives;
+        UpdateLifeDisplay();
     }
 }
