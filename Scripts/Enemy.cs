@@ -21,9 +21,9 @@ public class Enemy : MonoBehaviour
     [SerializeField] private GameObject _explosionEffect;
 
     [Header("Health Settings")]
-    [SerializeField] private int _maxHP = 3; // Jumlah HP musuh yang bisa diatur di Inspector
+    [SerializeField] private int _maxHP = 3;
 
-    [SerializeField] private AudioClip _hitSound; // sound saat kena hit tapi tidak mati
+    [SerializeField] private AudioClip _hitSound;
     [SerializeField] private AudioClip _explosionSound;
 
     private int _currentHP;
@@ -63,7 +63,7 @@ public class Enemy : MonoBehaviour
         _hasEnteredScreen = false;
         SetRandomTargetPosition();
         _nextShootTime = Time.time + Random.Range(0.5f, _shootCooldown);
-        _currentHP = _maxHP; // Reset HP saat diaktifkan kembali
+        _currentHP = _maxHP;
         _isDead = false;
     }
 
@@ -125,7 +125,6 @@ public class Enemy : MonoBehaviour
 
         EnemyBullet bullet = Instantiate(_bulletPrefab, _shootPoint.position, Quaternion.identity);
 
-        // Hitung arah dari enemy ke player
         Vector2 shootDirection = (_player.position - _shootPoint.position).normalized;
         bullet.SetDirection(shootDirection);
 
@@ -162,9 +161,8 @@ public class Enemy : MonoBehaviour
 
         if (collision.CompareTag("PlayerBullet"))
         {
-            int damage = 1; // default damage
+            int damage = 1;
 
-            // Cek apakah peluru punya info damage
             var bullet = collision.GetComponent<PlayerBullet>();
             if (bullet != null)
                 damage = bullet.Damage;
@@ -187,7 +185,6 @@ public class Enemy : MonoBehaviour
 
         if (_currentHP <= 0)
         {
-            GameManager.Instance.AddScore(10);
             GameManager.Instance.EnemyDefeated();
             DestroyEnemy();
         }
@@ -205,7 +202,6 @@ public class Enemy : MonoBehaviour
     {
         _isInvincible = true;
 
-        // buat sprite menghilang
         var renderers = GetComponentsInChildren<SpriteRenderer>();
         foreach (var renderer in renderers)
         {
@@ -238,7 +234,7 @@ public class Enemy : MonoBehaviour
         if (_explosionEffect != null)
         {
             GameObject explosion = Instantiate(_explosionEffect, transform.position, Quaternion.identity);
-            Destroy(explosion, 0.5f); // hilangkan ledakan setelah 0.5 detik
+            Destroy(explosion, 0.5f);
         }
 
         if (_explosionSound != null && _audioSource != null)
@@ -246,21 +242,18 @@ public class Enemy : MonoBehaviour
             _audioSource.PlayOneShot(_explosionSound);
         }
 
-        // Matikan semua renderer musuh agar sprite tidak terlihat
         var renderers = GetComponentsInChildren<SpriteRenderer>();
         foreach (var renderer in renderers)
         {
             renderer.enabled = false;
         }
 
-        // Nonaktifkan collider agar tidak kena hit lagi
         var colliders = GetComponents<Collider2D>();
         foreach (var col in colliders)
         {
             col.enabled = false;
         }
 
-        // Hancurkan musuh setelah suara ledakan selesai
         StartCoroutine(DestroyAfterSound());
     }
 

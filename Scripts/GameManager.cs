@@ -2,13 +2,14 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
+using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
-    
+
     [Header("Level Settings")]
-    [SerializeField] private List<LevelConfig> _levels; // List level, atur di Inspector
+    [SerializeField] private List<LevelConfig> _levels;
     [SerializeField] private float _delayBetweenLevels = 2f;
 
     [Header("UI References")]
@@ -17,10 +18,17 @@ public class GameManager : MonoBehaviour
     [SerializeField] private float fadeDuration = 0.5f;
     [SerializeField] private float levelDisplayDuration = 1.5f;
 
+    [Header("Game Over UI")]
+    [SerializeField] private CanvasGroup gameOverCanvasGroup;
+
+    [Header("Audio")]
+    [SerializeField] private AudioClip gameOverSound;
+
+    private bool isGameOver = false;
     private int _currentLevel = 0;
     private int _activeEnemies = 0;
-    private int _score;
     private bool dropSpawned = false;
+    private AudioSource audioSource;
 
     [System.Serializable]
     public class LevelConfig
@@ -28,6 +36,8 @@ public class GameManager : MonoBehaviour
         public int level;
         public Enemy enemyPrefab;
         public int enemyCount;
+        public Boss bossPrefab;
+        public bool isBossLevel = false;
     }
 
     private void Awake()
@@ -36,12 +46,30 @@ public class GameManager : MonoBehaviour
             Instance = this;
         else
             Destroy(gameObject);
+
+        Time.timeScale = 1f;
+
+        audioSource = GetComponent<AudioSource>();
+
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+        }
     }
 
     private void Start()
     {
+        isGameOver = false;
+        _currentLevel = 0;
+        dropSpawned = false;
+        _activeEnemies = 0;
+        if (gameOverCanvasGroup != null)
+        {
+            gameOverCanvasGroup.gameObject.SetActive(false);
+        }
+        
         StartCoroutine(StartLevel(_currentLevel));
-    } 
+    }
 
     public bool CanDropItem()
     {
@@ -59,35 +87,36 @@ public class GameManager : MonoBehaviour
 
         if (_activeEnemies <= 0)
         {
-            dropSpawned = false; // Reset drop untuk level berikutnya
+            dropSpawned = false;
+
             _currentLevel++;
+
             StartCoroutine(StartLevel(_currentLevel));
         }
     }
-    
+
     private IEnumerator StartLevel(int levelIndex)
     {
         if (levelIndex >= _levels.Count)
         {
-            Debug.Log("All levels completed!");
+            // Debug.Log("All levels completed!");
             GameOver();
             yield break;
         }
 
-        LevelConfig config = _levels[levelIndex];
+        var config = _levels[levelIndex];
 
-        // Tampilkan UI Level
-        levelTitleText.text = $"Level {config.level}";
+        levelTitleCanvasGroup.gameObject.SetActive(true);
+        levelTitleText.text = $"Level {levelIndex + 1}";
+
         yield return StartCoroutine(FadeCanvasGroup(levelTitleCanvasGroup, 0, 1, fadeDuration));
-
-        // Tunggu durasi tampil
         yield return new WaitForSeconds(levelDisplayDuration);
-
-        // Sembunyikan UI Level
         yield return StartCoroutine(FadeCanvasGroup(levelTitleCanvasGroup, 1, 0, fadeDuration));
 
-        // Tunggu sebelum spawn musuh
-        yield return new WaitForSeconds(1f); // jeda setelah UI menghilang
+        levelTitleText.text = "";
+        levelTitleCanvasGroup.gameObject.SetActive(false);
+
+        yield return new WaitForSeconds(1f);
 
         _activeEnemies = config.enemyCount;
 
@@ -99,7 +128,12 @@ public class GameManager : MonoBehaviour
             );
         }
 
-        Debug.Log($"Level {config.level} started with {config.enemyCount} enemies.");
+        if (config.isBossLevel && config.bossPrefab != null)
+        {
+            Boss boss = Instantiate(config.bossPrefab);
+            boss.transform.position = new Vector3(0f, 6f, 0f);
+            _activeEnemies++;
+        }
     }
 
     private IEnumerator FadeCanvasGroup(CanvasGroup canvasGroup, float from, float to, float duration)
@@ -108,26 +142,61 @@ public class GameManager : MonoBehaviour
         canvasGroup.alpha = from;
         canvasGroup.blocksRaycasts = false;
 
+        if (from == 0 && to > 0)
+            canvasGroup.gameObject.SetActive(true);
+
         while (time < duration)
         {
-            time += Time.deltaTime;
+            time += Time.unscaledDeltaTime;
             canvasGroup.alpha = Mathf.Lerp(from, to, time / duration);
             yield return null;
         }
 
         canvasGroup.alpha = to;
+
+        if (to == 0)
+            canvasGroup.gameObject.SetActive(false);
     }
 
-    public void AddScore(int value)
+    public void RegisterEnemy()
     {
-        _score += value;
-        Debug.Log("Score: " + _score);
+        _activeEnemies++;
     }
 
     public void GameOver()
     {
-        Debug.Log("Game Over!");
-        // Tambahkan logika game over di sini
-        // Contoh: menampilkan UI game over, menghentikan permainan, dll.
+        if (isGameOver) return;
+        isGameOver = true;
+
+        Time.timeScale = 0f;
+        //Debug.Log("Game Over!");
+
+        if (gameOverSound != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(gameOverSound);
+        }
+
+        if (gameOverCanvasGroup != null)
+        {
+            gameOverCanvasGroup.gameObject.SetActive(true);
+            StartCoroutine(FadeCanvasGroup(gameOverCanvasGroup, 0, 1, 0.5f));
+            gameOverCanvasGroup.interactable = true;
+            gameOverCanvasGroup.blocksRaycasts = true;
+        }
+    }
+
+    public void BossCutScene()
+    {
+        SceneManager.LoadScene("CutScene");
+    }
+
+    public void restartGame()
+    {
+        Time.timeScale = 1f;
+        isGameOver = false;
+        _currentLevel = 0;
+        dropSpawned = false;
+        _activeEnemies = 0;
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 }

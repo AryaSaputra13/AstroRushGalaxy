@@ -8,7 +8,7 @@ public class LifeManager : MonoBehaviour
 {
     public static LifeManager Instance;
     
-    [SerializeField] private TextMeshProUGUI lifeText; // Referensi ke TMP UI Text
+    [SerializeField] private TextMeshProUGUI lifeText;
     [SerializeField] private int startingLives = 5;
     
     private int currentLives;
@@ -41,7 +41,7 @@ public class LifeManager : MonoBehaviour
         {
             currentLives = 0;
             UpdateLifeDisplay();
-            GameManager.Instance.GameOver(); // Panggil game over dari GameManager
+            GameManager.Instance.GameOver();
         }
         else
         {

@@ -6,7 +6,7 @@ public class EnemyBullet : MonoBehaviour
 {
     [SerializeField] private float _speed = 5f;
     [SerializeField] private float _lifetime = 3f;
-    [SerializeField] private int _damage = 1; // ← NEW: bisa diatur lewat Inspector
+    [SerializeField] private int _damage = 1;
 
     private Vector2 _direction;
     private Rigidbody2D _rigidbody;
@@ -40,7 +40,7 @@ public class EnemyBullet : MonoBehaviour
             Player player = collision.GetComponent<Player>();
             if (player != null)
             {
-                player.TakeDamage(_damage); // Kirim nilai damage
+                player.TakeDamage(_damage);
             }
             Destroy(gameObject);
         }
